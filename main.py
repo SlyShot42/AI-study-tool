@@ -98,7 +98,39 @@ topic = st.text_area("Enter the topic you want to study")
 screen_width = streamlit_js_eval(js_expressions="screen.height", key="SCR")
 if topic != st.session_state.topic and topic is not None and topic != "":
     st.session_state.topic = topic
-    example = '{"table_of_contents": {"chapters": [{"chapter_number": 1, "chapter_title": "Introduction", "sections": ["1.1 Section Title", "1.2 Section Title", "1.3 Section Title"]}, {"chapter_number": 2, "chapter_title": "Chapter 2", "sections": ["2.1 Section Title", "2.2 Section Title", "2.3 Section Title"]}, {"chapter_number": 3, "chapter_title": "Chapter 3", "sections": ["3.1 Section Title", "3.2 Section Title", "3.3 Section Title"]}]}}'
+    example = r"""{
+        "table_of_contents": {
+            "chapters": [
+                {
+                    "chapter_number": 1, 
+                    "chapter_title": "Introduction", 
+                    "sections": [
+                        "1.1 Section Title", 
+                        "1.2 Section Title", 
+                        "1.3 Section Title"
+                    ]
+                }, 
+                {
+                    "chapter_number": 2, 
+                    "chapter_title": "Chapter 2", 
+                    "sections": [
+                        "2.1 Section Title", 
+                        "2.2 Section Title", 
+                        "2.3 Section Title"
+                    ]
+                }, 
+                {
+                    "chapter_number": 3, 
+                    "chapter_title": "Chapter 3", 
+                    "sections": [
+                        "3.1 Section Title", 
+                        "3.2 Section Title", 
+                        "3.3 Section Title"
+                    ]
+                }
+            ]
+        }
+    }"""
     response = openai.chat.completions.create(
         model=st.session_state["openai_model"],
         response_format={"type": "json_object"},
