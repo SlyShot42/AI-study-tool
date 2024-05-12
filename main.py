@@ -1,6 +1,7 @@
 import streamlit as st
 import json
 import random
+from code_editor import code_editor
 from streamlit_js_eval import streamlit_js_eval
 import openai
 
@@ -76,7 +77,7 @@ def free_response(problem, form_id):
 @st.experimental_fragment
 def code(problem, form_id):
     with st.expander("Code Problem"):
-        st.write(problem["Problem_statement"])
+        st.text_area(problem["Problem_statement"])
         st.write("Correct code: " + problem["Correct_code"])
 
         if st.button("Show correct answer", key=f"code_button {form_id+1}"):
@@ -203,7 +204,9 @@ if topic != st.session_state.topic and topic is not None and topic != "":
                         },
                         {
                             Problem_type: "Python code",
-                            Problem_statement: "Write a function that returns the sum of two numbers",
+                            Problem_statement: "Write a function that returns the sum of two numbers...(include any and all necessary information for the user to understand the problem)",
+                            testcases: "",
+                            boilerplate_code: "#make sure to include any class or function signatures required to run the testcases i.e.: \n def add(a, b): \n",
                             Correct_code: "def add(a, b):\n    return a + b"
                         }
                     ]
