@@ -13,7 +13,7 @@ st.title("Prompt Study Tool")
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 
 if "openai_model" not in st.session_state:
-    st.session_state.openai_model = "gpt-3.5-turbo"
+    st.session_state.openai_model = "gpt-4-turbo"
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -116,30 +116,34 @@ def code(problem, form_id):
 
         if submitted and user_code != "":
             # print(user_code)
-            testcases = [f"Test Case {i}" for i in range(len(problem["testcases"]))]
-            testcases_tabs = st.tabs(testcases)
-            for i, testcase in enumerate(problem["testcases"]):
-                with testcases_tabs[i]:
-                    # output_buffer = StringIO()
-                    # current_stdout = sys.stdout
-                    # sys.stdout = output_buffer
-                    try:
-                        print(user_code + "\n" + testcase)
-                        concat = user_code + "\n" + testcase
-                        local_vars = {}
-                        global_vars = {"__builtins__": __builtins__}
-                        # exec('assert False', global_vars, local_vars)
-                        exec(concat, global_vars, local_vars)
-                        # run = output_buffer.getvalue()
-                    except Exception as e:
-                        print("Error")
-                        print(e)
-                        st.code(traceback.format_exc())
-                        continue
-                    # finally:
-                    #     sys.stdout = current_stdout
-                    print("success")
-                    st.code("Success")
+            if len(problem["testcases"]) > 0:
+                testcases = [f"Test Case {i}" for i in range(len(problem["testcases"]))]
+                testcases_tabs = st.tabs(testcases)
+                for i, testcase in enumerate(problem["testcases"]):
+                    with testcases_tabs[i]:
+                        # output_buffer = StringIO()
+                        # current_stdout = sys.stdout
+                        # sys.stdout = output_buffer
+                        try:
+                            print(user_code + "\n" + testcase)
+                            concat = user_code + "\n" + testcase
+                            local_vars = {}
+                            global_vars = {"__builtins__": __builtins__}
+                            # exec('assert False', global_vars, local_vars)
+                            exec(concat, global_vars, local_vars)
+                            # run = output_buffer.getvalue()
+                        except Exception as e:
+                            print("Error")
+                            print(e)
+                            st.code(traceback.format_exc())
+                            continue
+                        # finally:
+                        #     sys.stdout = current_stdout
+                        print("success")
+                        st.code("Success")
+            else:
+                if user_code == problem["Correct_code"]:
+                    st.code("Correct!")
 
         if st.button("Show correct answer", key=f"code_button {form_id+1}"):
             st.code(problem["Correct_code"])
@@ -199,7 +203,7 @@ if topic != st.session_state.topic and topic is not None and topic != "":
         messages=[
             {
                 "role": "system",
-                "content": "You are a course textbook writing expert designed to output in JSON following the format: "
+                "content": "You are a course textbook writing expert designed to output in JSON following the format: \n"
                 + example,
             },
             {
@@ -236,11 +240,11 @@ if topic != st.session_state.topic and topic is not None and topic != "":
                         },
                         {
                             "role": "user",
-                            "content": "Generate the content of the section (do not include section title in reponse): "
+                            "content": "Generate the content of the section (do not include section title in reponse): \n"
                             + section
-                            + " in the"
+                            + "\n in the\n"
                             + st.session_state.topic
-                            + " textbook.",
+                            + "\n textbook.",
                         },
                     ],
                     temperature=0.4,
@@ -265,14 +269,8 @@ if topic != st.session_state.topic and topic is not None and topic != "":
                         },
                         {
                             Problem_type: "code",
-                            Problem_statement: "Write a function that returns the sum of two numbers...(include any and all necessary information for the user to understand the problem along with the function signatures and global variables, if any, to be used in the test cases)",
+                            Problem_statement: "Complete the function add(a,b) that returns the sum of two numbers",
                             intial_setup_code: "def add(a, b): \n\t# your code here",
-                            testcases: [
-                                "assert add(1, 2) == 3",
-                                "assert add(0, 0) == 0",
-                                "assert add(-1, 1) == 0"
-                                ],
-                            Correct_code: "def add(a, b):\n    return a + b"
                         }
                     ]
                 }"""
@@ -282,20 +280,20 @@ if topic != st.session_state.topic and topic is not None and topic != "":
                     messages=[
                         {
                             "role": "system",
-                            "content": "You are a course textbook problem generation machine designed to output in JSON in the format: "
+                            "content": "You are a course textbook problem generation machine designed to output in JSON in the format: \n"
                             + output_example
-                            + "Follow the problem type formatting exactly and using markdown(surround any inline latex math expressions with $..$ and display latex math expressions with $$..$$) for problem_statement field. Python is the language for any code problems. Do not put the answer/correct code of the question in the intial_setup_code field. intial_setup_code field is to contain only setup code for the problem and nothing else. Make sure that testcases can run successfully with the intial_setup_code and the correct code provided.",
+                            + "\nFollow the problem type formatting exactly and using markdown(surround any inline latex math expressions with $..$ and display latex math expressions with $$..$$) for problem_statement field. Python is the language for any code problems. Intial_setup_code field is to contain only setup code for the problem and nothing else. For the problem_statement, include any and all necessary information for the user to understand the problem along with the functions and variables to be used in the testcases. LEAVE NO ROOM FOR AMBIGUITY.",
                         },
                         {
                             "role": "user",
-                            "content": "Generate exactly 2 problems of random types for the section: "
+                            "content": "Generate exactly 2 problems of random types for the section: \n"
                             + section
-                            + "referencing the section content"
+                            + "\nreferencing the section content\n"
                             + raw_content,
                         },
                     ],
                     seed=138,
-                    temperature=0.4,
+                    temperature=0.2,
                 )
                 # print(problem_content.choices[0].message.content)
                 problems = json.loads(problem_content.choices[0].message.content)
@@ -307,6 +305,38 @@ if topic != st.session_state.topic and topic is not None and topic != "":
                     elif problem["Problem_type"] == "free response":
                         free_response(problem, form_id)
                     elif problem["Problem_type"] == "code":
+                        output_example = r"""{
+                            Correct_code: "def add(a, b): \n\treturn a + b",
+                            testcases: [
+                                "assert add(1, 2) == 3", 
+                                "assert add(3, 4) == 7", 
+                                "assert add(5, 6) == 11"
+                            ], 
+                        }"""
+                        response = openai.chat.completions.create(
+                            model=st.session_state["openai_model"],
+                            response_format={"type": "json_object"},
+                            messages=[
+                                {
+                                    "role": "system",
+                                    "content": "You are a course textbook problem solution generation machine designed to output in JSON in the format: "
+                                    + output_example
+                                    + "\n Follow the format exactly. Must use initial_setup_code to come up with the Correct_code. Ensure the testcases run successfully when concatenated with the Correct_code provided. For any problems whose answer is just a set of import, do not include testcases",
+                                },
+                                {
+                                    "role": "user",
+                                    "content": "Generate the correct code and testcases for the code problem: \n"
+                                    + problem["Problem_statement"]
+                                    + "\n using the code setup: \n"
+                                    + problem["intial_setup_code"],
+                                },
+                            ],
+                            seed=138,
+                            temperature=0.1,
+                        )
+                        correct_code = json.loads(response.choices[0].message.content)
+                        problem["Correct_code"] = correct_code["Correct_code"]
+                        problem["testcases"] = correct_code["testcases"]
                         code(problem, form_id)
 
     with st.sidebar:
