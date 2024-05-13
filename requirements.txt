@@ -1,8 +1,4 @@
 streamlit
-sys
-io
-json
-random
 code-editor
 streamlit-js-eval
 openai
