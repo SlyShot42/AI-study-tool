@@ -1,4 +1,4 @@
 streamlit
-# code-editor
+streamlit_code_editor
 streamlit-js-eval
 openai
