@@ -1,4 +1,7 @@
 import streamlit as st
+import traceback
+import sys
+from io import StringIO
 import json
 import random
 from code_editor import code_editor
@@ -74,14 +77,72 @@ def free_response(problem, form_id):
             st.write("Correct answer: " + problem["Correct_answer"])
 
 
+btn_settings_editor_btns = [
+    {
+        "name": "copy",
+        "feather": "Copy",
+        "hasText": True,
+        "alwaysOn": True,
+        "commands": ["copyAll"],
+        "style": {"top": "0rem", "right": "0.4rem"},
+    },
+    {
+        "name": "update",
+        "feather": "RefreshCw",
+        "primary": True,
+        "hasText": True,
+        "showWithIcon": True,
+        "commands": ["submit"],
+        "style": {"bottom": "0rem", "right": "0.4rem"},
+    },
+]
+
+
 @st.experimental_fragment
 def code(problem, form_id):
     with st.expander("Code Problem"):
-        st.text_area(problem["Problem_statement"])
-        st.write("Correct code: " + problem["Correct_code"])
+        with st.form(key=f"code_form {form_id}"):
+            st.markdown(problem["Problem_statement"])
+            user_code = code_editor(
+                problem["intial_setup_code"],
+                lang="python",
+                buttons=btn_settings_editor_btns,
+            )
+            submitted = False
+            if user_code["type"] == "submit" and len(user_code["text"]) != 0:
+                # print(user_code["text"])
+                user_code = user_code["text"]
+            submitted = st.form_submit_button("Submit")
+
+        if submitted and user_code != "":
+            # print(user_code)
+            testcases = [f"Test Case {i}" for i in range(len(problem["testcases"]))]
+            testcases_tabs = st.tabs(testcases)
+            for i, testcase in enumerate(problem["testcases"]):
+                with testcases_tabs[i]:
+                    # output_buffer = StringIO()
+                    # current_stdout = sys.stdout
+                    # sys.stdout = output_buffer
+                    try:
+                        print(user_code + "\n" + testcase)
+                        concat = user_code + "\n" + testcase
+                        local_vars = {}
+                        global_vars = {"__builtins__": __builtins__}
+                        # exec('assert False', global_vars, local_vars)
+                        exec(concat, global_vars, local_vars)
+                        # run = output_buffer.getvalue()
+                    except Exception as e:
+                        print("Error")
+                        print(e)
+                        st.code(traceback.format_exc())
+                        continue
+                    # finally:
+                    #     sys.stdout = current_stdout
+                    print("success")
+                    st.code("Success")
 
         if st.button("Show correct answer", key=f"code_button {form_id+1}"):
-            st.write("Correct answer: " + problem["Correct_answer"])
+            st.code(problem["Correct_code"])
 
 
 # if st.button("Clear"):
@@ -151,14 +212,14 @@ if topic != st.session_state.topic and topic is not None and topic != "":
         seed=138,
         temperature=0.1,
     )
-    print(response.choices[0].message.content)
+    # print(response.choices[0].message.content)
     data = json.loads(response.choices[0].message.content)
     chapters = data["table_of_contents"]["chapters"]
     st.session_state.chapter_numbers = [
         str(chapter["chapter_number"]) + ": " + chapter["chapter_title"]
         for chapter in chapters
     ]
-    print(st.session_state.chapter_numbers)
+    # print(st.session_state.chapter_numbers)
 
     st.header("Reading + Problems", divider="violet")
     chapter_tabs = st.tabs(st.session_state.chapter_numbers)
@@ -184,7 +245,7 @@ if topic != st.session_state.topic and topic is not None and topic != "":
                     ],
                     temperature=0.4,
                 )
-                print(section_content.choices[0].message.content)
+                # print(section_content.choices[0].message.content)
                 raw_content = section_content.choices[0].message.content
                 st.markdown(raw_content)
 
@@ -203,10 +264,14 @@ if topic != st.session_state.topic and topic is not None and topic != "":
                             Correct_answer: "Elon Musk is the CEO of Tesla."
                         },
                         {
-                            Problem_type: "Python code",
-                            Problem_statement: "Write a function that returns the sum of two numbers...(include any and all necessary information for the user to understand the problem)",
-                            testcases: "",
-                            boilerplate_code: "#make sure to include any class or function signatures required to run the testcases i.e.: \n def add(a, b): \n",
+                            Problem_type: "code",
+                            Problem_statement: "Write a function that returns the sum of two numbers...(include any and all necessary information for the user to understand the problem along with the function signatures and global variables, if any, to be used in the test cases)",
+                            intial_setup_code: "def add(a, b): \n\t# your code here",
+                            testcases: [
+                                "assert add(1, 2) == 3",
+                                "assert add(0, 0) == 0",
+                                "assert add(-1, 1) == 0"
+                                ],
                             Correct_code: "def add(a, b):\n    return a + b"
                         }
                     ]
@@ -219,7 +284,7 @@ if topic != st.session_state.topic and topic is not None and topic != "":
                             "role": "system",
                             "content": "You are a course textbook problem generation machine designed to output in JSON in the format: "
                             + output_example
-                            + "Follow the problem type formatting exactly and using markdown(surround any inline latex math expressions with $..$ and display latex math expressions with $$..$$) for problem_statement field.",
+                            + "Follow the problem type formatting exactly and using markdown(surround any inline latex math expressions with $..$ and display latex math expressions with $$..$$) for problem_statement field. Python is the language for any code problems. Do not put the answer/correct code of the question in the intial_setup_code field. intial_setup_code field is to contain only setup code for the problem and nothing else. Make sure that testcases can run successfully with the intial_setup_code and the correct code provided.",
                         },
                         {
                             "role": "user",
@@ -232,7 +297,7 @@ if topic != st.session_state.topic and topic is not None and topic != "":
                     seed=138,
                     temperature=0.4,
                 )
-                print(problem_content.choices[0].message.content)
+                # print(problem_content.choices[0].message.content)
                 problems = json.loads(problem_content.choices[0].message.content)
                 problems = problems["Problems"]
                 for problem in problems:
@@ -241,7 +306,7 @@ if topic != st.session_state.topic and topic is not None and topic != "":
                         multiple_choice(problem, form_id)
                     elif problem["Problem_type"] == "free response":
                         free_response(problem, form_id)
-                    elif problem["Problem_type"] == "Python code":
+                    elif problem["Problem_type"] == "code":
                         code(problem, form_id)
 
     with st.sidebar:
