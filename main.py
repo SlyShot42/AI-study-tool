@@ -135,12 +135,13 @@ def code(problem, form_id):
                         except Exception as e:
                             print("Error")
                             print(e)
-                            st.code(traceback.format_exc())
+                            st.exception(e)
+                            st.exception(traceback.format_exc())
                             continue
                         # finally:
                         #     sys.stdout = current_stdout
                         print("success")
-                        st.code("Success")
+                        st.success("Success")
             else:
                 if user_code == problem["Correct_code"]:
                     st.code("Correct!")
