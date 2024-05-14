@@ -384,7 +384,7 @@ st.header("Topic:", divider="violet")
 topic = st.text_area("Enter the topic you want to study")
 if topic != st.session_state.topic and topic is not None and topic != "":
     # main_area = st.empty()
-
+    st.session_state.expander_bool = False
     st.session_state.topic = topic
     example = r"""{
         "table_of_contents": {
