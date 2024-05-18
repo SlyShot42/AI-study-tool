@@ -1,9 +1,6 @@
 import streamlit as st
-import traceback
-from io import StringIO
 import random
 from code_editor import code_editor
-from streamlit_js_eval import streamlit_js_eval
 import openai
 from jupyter_client.manager import KernelManager
 
@@ -83,6 +80,7 @@ def run_code(code):
     kc.start_channels()
     msg_id = kc.execute(code)
     result = ""
+    error = False
     while True:
         # while not kc.iopub_channel.msg_ready():
         #     pass
@@ -94,15 +92,28 @@ def run_code(code):
         # if msg["msg_type"] == "status" and msg["content"]["execution_state"] == "idle":
         #     break
         msg = kc.get_iopub_msg()
-        print(msg)
-        if msg['parent_header']['msg_id'] == msg_id:
-            if msg['msg_type'] == 'execute_result':
-                return msg['content']['data']['text/plain']
-            elif msg['msg_type'] == 'error':
-                return "\n".join(msg['content']['traceback'])
+        print(msg["header"]["msg_type"])
+        if msg["header"]["msg_type"] == "status":
+            if msg["content"]["execution_state"] == "idle":
+                break
+        # if msg["parent_header"]["msg_id"] == msg_id:
+        if msg["header"]["msg_type"] == "stream":
+            if msg["content"]["name"] == "stdout":
+                result += msg["content"]["text"]
+            elif msg["content"]["name"] == "stderr":
+                error = True
+                result += msg["content"]["text"]
+            break
+        elif msg["header"]["msg_type"] == "error":
+            error = True
+            traceback = "".join(msg["content"]["traceback"])
+            ename = msg["content"]["ename"]
+            evalue = msg["content"]["evalue"]
+            result = f"An error occurred during execution:\n\n{ename}: {evalue}\n\nTraceback:\n{traceback}"
+            break
     kc.stop_channels()
     km.shutdown_kernel()
-    return result
+    return result, error
 
 
 @st.experimental_fragment
@@ -118,34 +129,45 @@ def code(problem, form_id):
                 response_mode=["blur", "debounce"],
             )
             # submitted = False
-            if user_code["type"] == "submit" and len(user_code["text"]) != 0:
-                # print(user_code["text"])
-                user_code = user_code["text"]
             submitted = st.form_submit_button("Submit")
 
         if submitted:
             # print(user_code)
+            if user_code["type"] != "" and len(user_code["text"]) != 0:
+                # print(user_code["text"])
+                user_code = user_code["text"]
             if len(problem["testcases"]) > 0:
-                testcases = [f"Test Case {i}" for i in range(len(problem["testcases"]))]
+                testcases = [
+                    f"Test Case {i}" for i in range(1, len(problem["testcases"]) + 1)
+                ]
                 testcases_tabs = st.tabs(testcases)
                 for i, testcase in enumerate(problem["testcases"]):
                     with testcases_tabs[i]:
                         # output_buffer = StringIO()
                         # current_stdout = sys.stdout
                         # sys.stdout = output_buffer
-
+                        # test, error = run_code("print('hello')")
                         # print(user_code + "\n" + testcase)
-                        # concat = user_code + "\n" + testcase
-
-                        test = run_code(
-                            "import numpy as np\n\ndef create_random_matrix(rows, cols):\n\treturn np.random.normal(rows, cols)\nassert create_random_matrix(1,1).shape == (1,1)"
-                        )
-                        print(test)
+                        concat = user_code + "\n" + testcase
+                        # print(concat)
+                        test, error = run_code(concat)
+                        if error:
+                            st.error(test)
+                        else:
+                            if test == "":
+                                st.success("Correct!")
+                            else:
+                                st.error(test)
+                        # executionResult, error = run_code(user_code + "\n" + testcase)
+                        # if error:
+                        #     st.error(executionResult)
+                        # else:
+                        #     st.success("Correct!")
                         # exec(concat, global_vars, local_vars)
                         # run = output_buffer.getvalue(
             else:
                 if user_code == problem["Correct_code"]:
-                    st.code("Correct!")
+                    st.success("Correct!")
 
         if st.button("Show correct answer", key=f"code_button {form_id+1}"):
             st.code(problem["Correct_code"])

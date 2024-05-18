@@ -1,9 +1,6 @@
 import streamlit as st
-import traceback
-import sys
 from io import StringIO
 import json
-import random
 from code_editor import code_editor
 from streamlit_js_eval import streamlit_js_eval
 import openai
@@ -37,8 +34,13 @@ st.session_state.screen_width = streamlit_js_eval(
 )
 
 
-@st.cache_data
+@st.cache_data(show_spinner=False)
 def generate_content(selected_chapters):
+    my_bar = st.progress(0, text="Generating Content")
+    api_calls = 0
+    total_calls = 0
+    for chapter in selected_chapters:
+        total_calls += len(chapter["sections"]) * 4
     for chapter in selected_chapters:
         for i, section in enumerate(chapter["sections"]):
             section_content = openai.chat.completions.create(
@@ -59,6 +61,8 @@ def generate_content(selected_chapters):
                 ],
                 temperature=0.4,
             )
+            api_calls += 1
+            my_bar.progress(api_calls / total_calls, text="Generating Content")
             raw_content = section_content.choices[0].message.content
 
             # problem types: multiple choice, free response, code
@@ -103,6 +107,8 @@ def generate_content(selected_chapters):
                 seed=138,
                 temperature=0.2,
             )
+            api_calls += 1
+            my_bar.progress(api_calls / total_calls, text="Generating Content")
             problems = json.loads(problem_content.choices[0].message.content)
 
             for problem in problems["Problems"]:
@@ -136,6 +142,8 @@ def generate_content(selected_chapters):
                         seed=138,
                         temperature=0.1,
                     )
+                    api_calls += 1
+                    my_bar.progress(api_calls / total_calls, text="Generating Content")
                     correct_code = json.loads(response.choices[0].message.content)
                     problem["Correct_code"] = correct_code["Correct_code"]
                     problem["testcases"] = correct_code["testcases"]
@@ -146,15 +154,16 @@ def generate_content(selected_chapters):
                 "problems": problems["Problems"],
             }
     # print(selected_chapters)
+    my_bar.empty()
     return selected_chapters
 
 
-@st.experimental_fragment
-def test(i):
-    with st.expander("test"):
-        if st.button("test", key=i):
-            st.write("test")
-            st.write(i)
+# @st.experimental_fragment
+# def test(i):
+#     with st.expander("test"):
+#         if st.button("test", key=i):
+#             st.write("test")
+#             st.write(i)
 
 
 @st.experimental_fragment
@@ -193,7 +202,7 @@ def content_selection(selected_chapters, section_selections):
     #     test(i)
 
 
-@st.cache_data
+@st.cache_data(show_spinner=False)
 def generate_chapters(topic):
     st.session_state.messages = []
     st.session_state.selected_chapters = []
@@ -256,11 +265,13 @@ def generate_chapters(topic):
 
 st.header("Topic:", divider="violet")
 topic = st.text_area("Enter the topic you want to study")
-st.session_state.topic = topic
+if topic is not None and topic != "":
+    st.session_state.topic = topic
 if st.session_state.topic is not None and st.session_state.topic != "":
     # something()
     # main_area = st.empty()
-    st.session_state.chapters = generate_chapters(st.session_state.topic)
+    with st.spinner("Generating Table of Contents"):
+        st.session_state.chapters = generate_chapters(st.session_state.topic)
     for chapter in st.session_state.chapters:
         chapter["chapter_label"] = (
             str(chapter["chapter_number"]) + ": " + chapter["chapter_title"]
