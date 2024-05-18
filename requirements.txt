@@ -2,9 +2,8 @@ streamlit
 streamlit_code_editor
 streamlit-js-eval
 openai
-jupyter_client
+jupyter-client
 ipykernel
-jupyter_client
 torch
 torchvision
 torchaudio
