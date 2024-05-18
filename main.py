@@ -13,7 +13,7 @@ st.title("Prompt Study Tool")
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 
 if "openai_model" not in st.session_state:
-    st.session_state.openai_model = "gpt-4-turbo"
+    st.session_state.openai_model = "gpt-4o"
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -27,172 +27,16 @@ if "chapters" not in st.session_state:
 if "selected_chapters" not in st.session_state:
     st.session_state.selected_chapters = []
 
-if "expander_bool" not in st.session_state:
-    st.session_state.expander_bool = False
+
+if "screen_width" not in st.session_state:
+    st.session_state.screen_width = 0
 
 
-@st.experimental_fragment
-def multiple_choice(problem, form_id):
-    with st.expander("Multiple Choice Problem"):
-        with st.form(key=f"multiple_choice_form {form_id}"):
-            user_choice = st.radio(problem["Problem_statement"], problem["Choices"])
-            submitted = st.form_submit_button("Submit")
-        if submitted:
-            if user_choice == problem["Correct_answer"]:
-                st.write("Correct!")
-            else:
-                st.write("Incorrect.")
-
-        if st.button("Show correct answer", key=f"multiple_choice_button {form_id+1}"):
-            st.write("Correct answer: " + problem["Correct_answer"])
+st.session_state.screen_width = streamlit_js_eval(
+    js_expressions="screen.height", key="SCR"
+)
 
 
-@st.experimental_fragment
-def free_response(problem, form_id):
-    with st.expander("Free Response Problem"):
-        with st.form(key=f"free_response_form {form_id}"):
-            user_answer = st.text_area(problem["Problem_statement"])
-            submitted = st.form_submit_button("Submit")
-
-        if submitted:
-            response = openai.chat.completions.create(
-                model=st.session_state["openai_model"],
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are an expert in the field of "
-                        + st.session_state.topic
-                        + " and are designed to provide feedback on user answers without giving away the actual answer. Do not acknowledge or greet. Address the user's answer directly using second person.",
-                    },
-                    {
-                        "role": "user",
-                        "content": "Provide feedback without directly or indirectly giving away the answer: "
-                        + user_answer
-                        + " for the question: "
-                        + problem["Problem_statement"]
-                        + "using the correct answer: "
-                        + problem["Correct_answer"],
-                    },
-                ],
-                seed=138,
-                temperature=0.1,
-            )
-            st.markdown(response.choices[0].message.content)
-
-        if st.button("Show correct answer", key=f"free_response_button {form_id+1}"):
-            st.write("Correct answer: " + problem["Correct_answer"])
-
-
-btn_settings_editor_btns = [
-    {
-        "name": "copy",
-        "feather": "Copy",
-        "hasText": True,
-        "alwaysOn": True,
-        "commands": ["copyAll"],
-        "style": {"top": "0rem", "right": "0.4rem"},
-    },
-    {
-        "name": "update",
-        "feather": "RefreshCw",
-        "primary": True,
-        "hasText": True,
-        "showWithIcon": True,
-        "commands": ["submit"],
-        "style": {"bottom": "0rem", "right": "0.4rem"},
-    },
-]
-
-
-@st.experimental_fragment
-def code(problem, form_id):
-    with st.expander("Code Problem"):
-        with st.form(key=f"code_form {form_id}"):
-            st.markdown(problem["Problem_statement"])
-            user_code = code_editor(
-                problem["intial_setup_code"],
-                lang="python",
-                buttons=btn_settings_editor_btns,
-            )
-            submitted = False
-            if user_code["type"] == "submit" and len(user_code["text"]) != 0:
-                # print(user_code["text"])
-                user_code = user_code["text"]
-            submitted = st.form_submit_button("Submit")
-
-        if submitted and user_code != "":
-            # print(user_code)
-            if len(problem["testcases"]) > 0:
-                testcases = [f"Test Case {i}" for i in range(len(problem["testcases"]))]
-                testcases_tabs = st.tabs(testcases)
-                for i, testcase in enumerate(problem["testcases"]):
-                    with testcases_tabs[i]:
-                        # output_buffer = StringIO()
-                        # current_stdout = sys.stdout
-                        # sys.stdout = output_buffer
-                        try:
-                            print(user_code + "\n" + testcase)
-                            concat = user_code + "\n" + testcase
-                            local_vars = {}
-                            global_vars = {"__builtins__": __builtins__}
-                            # exec('assert False', global_vars, local_vars)
-                            exec(concat, global_vars, local_vars)
-                            # run = output_buffer.getvalue()
-                        except Exception as e:
-                            print("Error")
-                            print(e)
-                            st.exception(e)
-                            st.exception(traceback.format_exc())
-                            continue
-                        # finally:
-                        #     sys.stdout = current_stdout
-                        print("success")
-                        st.success("Success")
-            else:
-                if user_code == problem["Correct_code"]:
-                    st.code("Correct!")
-
-        if st.button("Show correct answer", key=f"code_button {form_id+1}"):
-            st.code(problem["Correct_code"])
-
-
-screen_width = streamlit_js_eval(js_expressions="screen.height", key="SCR")
-
-
-@st.experimental_fragment
-def chat_area():
-    st.header("General Chat", divider="rainbow")
-    chat_area = st.container(height=int(screen_width * 0.5), border=True)
-
-    for message in st.session_state.messages:
-        with chat_area:
-            with st.chat_message(message["role"]):
-                st.markdown(message["content"])
-    #     with chat_message_placeholder.chat_message(message["role"]):
-    #         chat_message_placeholder.markdown(message["content"])
-    if prompt := st.chat_input("hello there"):
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with chat_area:
-            with st.chat_message("user"):
-                st.markdown(prompt)
-
-            with st.chat_message("assistant"):
-                stream = openai.chat.completions.create(
-                    model=st.session_state["openai_model"],
-                    messages=st.session_state.messages,
-                    stream=True,
-                )
-                response = st.write_stream(stream)
-            st.session_state.messages.append({"role": "assistant", "content": response})
-
-
-# selected_chapters = []
-
-
-# @st.experimental_fragment
-# def something(form_id=random.randint(0, 100000)):
-#     if st.button("Something", key=f"button {form_id}"):
-#         st.write("Something", key=f"write {form_id}")
 @st.cache_data
 def generate_content(selected_chapters):
     for chapter in selected_chapters:
@@ -301,63 +145,29 @@ def generate_content(selected_chapters):
                 "content": section_content.choices[0].message.content,
                 "problems": problems["Problems"],
             }
-    print(selected_chapters)
+    # print(selected_chapters)
     return selected_chapters
 
 
 @st.experimental_fragment
-def load_ui(selected_chapters):
-    with st.sidebar:
-        chat_area()
-
-    st.header("Reading + Problems", divider="violet")
-
-    selected_chapter_tabs = st.tabs(
-        [chapter["chapter_label"] for chapter in selected_chapters]
-    )
-
-    for chapter_tab, chapter in zip(selected_chapter_tabs, selected_chapters):
-        with chapter_tab:
-            for i, section in enumerate(chapter["sections"]):
-                st.subheader(section["heading"], divider="blue")
-                st.markdown(section["content"])
-                for problem in section["problems"]:
-                    form_id = random.randint(0, 100000)
-                    if problem["Problem_type"] == "multiple choice":
-                        multiple_choice(problem, form_id)
-                    elif problem["Problem_type"] == "free response":
-                        free_response(problem, form_id)
-                    elif problem["Problem_type"] == "code":
-                        code(problem, form_id)
-
-
-# @st.experimental_fragment
-def test(id):
-    # st.button("Test", key=id)
-    with st.expander("Test"):
-        if st.button("Test", key=id):
-            # print(st.session_state.selected_chapters)
-            st.write("Test")
+def test(i):
+    with st.expander("test"):
+        if st.button("test", key=i):
+            st.write("test")
+            st.write(i)
 
 
 @st.experimental_fragment
-def table_of_content_form():
-    def close_expander():
-        st.session_state.expander_bool = True
+def content_selection(selected_chapters, section_selections):
 
-    # test(0)
-    # test(1)
-
-    with st.expander(
-        "Table of Content Selection", expanded=not st.session_state.expander_bool
-    ):
-        with st.form(key="content_selection_form"):
-            select_all = st.checkbox("Select All")
-            for i, chapter in enumerate(st.session_state.chapters):
-                section_selections[i] = st.multiselect(
-                    chapter["chapter_label"], chapter["sections"]
-                )
-            submitted = st.form_submit_button("Submit", on_click=close_expander)
+    st.header("Table of Content Selection", divider="violet")
+    with st.form(key="content_selection_form"):
+        select_all = st.checkbox("Select All")
+        for i, chapter in enumerate(st.session_state.chapters):
+            section_selections[i] = st.multiselect(
+                chapter["chapter_label"], chapter["sections"]
+            )
+        submitted = st.form_submit_button("Submit")
     if submitted:
         selected_chapters = []
         # st.code(section_selections)
@@ -369,73 +179,24 @@ def table_of_content_form():
                     # print(i)
                     selected_chapters.append(chapter.copy())
                     selected_chapters[-1]["sections"] = section_selections[i]
-        # print(selected_chapters)
+        print(selected_chapters)
         if len(selected_chapters) > 0:
             # replace main area with textbook content
             st.session_state.selected_chapters = generate_content(
-                selected_chapters.copy()
-            )
-    # test(0)
-    # for i in range(5):
+                selected_chapters
+            ).copy()
+            # print(st.session_state.selected_chapters)
+        st.switch_page("pages/content_page.py")
+        # load_ui(st.session_state.selected_chapters)
+    # print(len(st.session_state.selected_chapters))
+    # for i, chapter in enumerate(st.session_state.selected_chapters):
     #     test(i)
-    for i, chapter in enumerate(st.session_state.selected_chapters):
-        print(i)
-        test(i)
-
-
-@st.experimental_fragment
-def content_selection(selected_chapters, section_selections):
-    # for chapter in st.session_state.selected_chapters:
-    #     id = random.randint(0, 100000)
-    #     test(id)
-    # test(0)
-    table_of_content_form()
-
-    # form_id = random.randint(0, 100000)
-    # something()
-    # print(st.session_state.selected_chapters)
-    # if st.session_state.selected_chapters != []:
-    #     print(st.session_state.selected_chapters)
-    #     load_ui(st.session_state.selected_chapters)
-    # example_problem = {
-    #     "Problem_type": "multiple choice",
-    #     "Problem_statement": "What is the capital of France?",
-    #     "Choices": ["Paris", "London", "Berlin", "Madrid"],
-    #     "Correct_answer": "Paris",
-    # }
-    # # multiple_choice(example_problem, 0)
-    # # load_ui(st.session_state.selected_chapters)
-    # with st.sidebar:
-    #     chat_area()
-
-    # st.header("Reading + Problems", divider="violet")
-    # test()
-
-    # selected_chapter_tabs = st.tabs(
-    #     [chapter["chapter_label"] for chapter in st.session_state.selected_chapters]
-    # )
-
-    # for chapter_tab, chapter in zip(
-    #     selected_chapter_tabs, st.session_state.selected_chapters
-    # ):
-    # test()
-    # multiple_choice(example_problem, 1)
-    # with chapter_tab:
-    #     for i, section in enumerate(chapter["sections"]):
-    #         st.subheader(section["heading"], divider="blue")
-    #         st.markdown(section["content"])
-    #         for problem in section["problems"]:
-    #             form_id = random.randint(0, 100000)
-    #             if problem["Problem_type"] == "multiple choice":
-    #                 multiple_choice(problem, form_id)
-    #             elif problem["Problem_type"] == "free response":
-    #                 free_response(problem, form_id)
-    #             elif problem["Problem_type"] == "code":
-    #                 code(problem, form_id)
 
 
 @st.cache_data
 def generate_chapters(topic):
+    st.session_state.messages = []
+    st.session_state.selected_chapters = []
     example = r"""{
         "table_of_contents": {
             "chapters": [
@@ -493,29 +254,18 @@ def generate_chapters(topic):
     return data["table_of_contents"]["chapters"]
 
 
-# test()
 st.header("Topic:", divider="violet")
 topic = st.text_area("Enter the topic you want to study")
-if topic != st.session_state.topic and topic is not None and topic != "":
+st.session_state.topic = topic
+if st.session_state.topic is not None and st.session_state.topic != "":
     # something()
     # main_area = st.empty()
-    st.session_state.expander_bool = False
-    st.session_state.topic = topic
     st.session_state.chapters = generate_chapters(st.session_state.topic)
     for chapter in st.session_state.chapters:
         chapter["chapter_label"] = (
             str(chapter["chapter_number"]) + ": " + chapter["chapter_title"]
         )
-    # print(st.session_state.chapter_numbers)
 
-    # replace main area with choice checkboxes
     section_selections = [None] * len(st.session_state.chapters)
-    st.session_state.selected_chapters = []
+
     content_selection([], section_selections)
-    # print(st.session_state.selected_chapters)
-
-
-# if prompt := st.chat_input("What is up?"):
-#     st.session_state.messages.append({"role": "user", "content": prompt})
-#     with st.chat_message("user"):
-#         st.markdown(prompt)
