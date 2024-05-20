@@ -6,7 +6,6 @@ from streamlit_js_eval import streamlit_js_eval
 import openai
 import time
 
-st.title("Prompt Study Tool")
 
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 
@@ -31,15 +30,15 @@ if "expander_bool" not in st.session_state:
 if "screen_width" not in st.session_state:
     st.session_state.screen_width = 0
 
-
-st.session_state.screen_width = streamlit_js_eval(
-    js_expressions="screen.height", key="SCR"
-)
+if st.session_state.topic == "":
+    st.session_state.screen_width = streamlit_js_eval(
+        js_expressions="screen.height", key="SCR"
+    )
 
 
 @st.cache_data(show_spinner=False)
 def generate_content(selected_chapters):
-    my_bar = st.progress(0, text="Generating Content")
+    my_bar = st.progress(0, text="Generating Content...")
     api_calls = 0
     total_calls = 0
     for chapter in selected_chapters:
@@ -179,12 +178,16 @@ def content_selection(selected_chapters, section_selections):
         st.session_state.expander_bool = False
 
     # st.header("Table of Content Selection", divider="violet")
-    with st.expander("Table of Contents", expanded=st.session_state.expander_bool):
+    with st.expander(
+        "Table of Contents Selection", expanded=st.session_state.expander_bool
+    ):
         with st.form(key="content_selection_form"):
             select_all = st.checkbox("Select All")
             for i, chapter in enumerate(st.session_state.chapters):
                 section_selections[i] = st.multiselect(
-                    chapter["chapter_label"], chapter["sections"]
+                    chapter["chapter_label"],
+                    chapter["sections"],
+                    placeholder="Select Sections",
                 )
             submitted = st.form_submit_button("Submit", on_click=close_expander)
     if submitted:
@@ -273,19 +276,30 @@ def generate_chapters(topic):
 
 
 # st.session_state.expander_bool = True
-st.header("Topic:", divider="violet")
+# col1, col2, col3 = st.columns(3)
+# col2.title(":open_book:")
+# col2.title("$BookGen$")
+# col2.header("Topic:", divider="violet")
+st.markdown(
+    "<h1 style='text-align: center; font-family: serif;'>BookGen&#128214</h1>",
+    unsafe_allow_html=True,
+)
 topic = st.text_area("Enter the topic you want to study")
+col1, col2, col3 = st.columns(3)
+submitted = col2.button("Submit", use_container_width=True)
 if topic is not None and topic != "":
     st.session_state.topic = topic
 if st.session_state.topic is not None and st.session_state.topic != "":
     # something()
     # main_area = st.empty()
-    with st.spinner("Generating Table of Contents"):
-        st.session_state.chapters = generate_chapters(st.session_state.topic)
-    for chapter in st.session_state.chapters:
-        chapter["chapter_label"] = (
-            str(chapter["chapter_number"]) + ": " + chapter["chapter_title"]
-        )
+    if submitted:
+        with st.spinner("Generating Table of Contents..."):
+            st.session_state.chapters = generate_chapters(st.session_state.topic)
+    if len(st.session_state.chapters) > 0:
+        for chapter in st.session_state.chapters:
+            chapter["chapter_label"] = (
+                str(chapter["chapter_number"]) + ": " + chapter["chapter_title"]
+            )
 
-    section_selections = [None] * len(st.session_state.chapters)
-    content_selection([], section_selections)
+        section_selections = [None] * len(st.session_state.chapters)
+        content_selection([], section_selections)
