@@ -209,6 +209,7 @@ st.header("Reading + Problems", divider="violet")
 if st.button(
     "Go back to Topic and Content Selection", type="primary", use_container_width=True
 ):
+    st.session_state.expander_bool = True
     st.switch_page("./main.py")
 # print(f"{st.session_state.selected_chapters}")
 selected_chapter_tabs = st.tabs(

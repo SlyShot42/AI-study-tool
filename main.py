@@ -4,6 +4,7 @@ import json
 from code_editor import code_editor
 from streamlit_js_eval import streamlit_js_eval
 import openai
+import time
 
 st.title("Prompt Study Tool")
 
@@ -24,6 +25,8 @@ if "chapters" not in st.session_state:
 if "selected_chapters" not in st.session_state:
     st.session_state.selected_chapters = []
 
+if "expander_bool" not in st.session_state:
+    st.session_state.expander_bool = True
 
 if "screen_width" not in st.session_state:
     st.session_state.screen_width = 0
@@ -40,7 +43,7 @@ def generate_content(selected_chapters):
     api_calls = 0
     total_calls = 0
     for chapter in selected_chapters:
-        total_calls += len(chapter["sections"]) * 4
+        total_calls += len(chapter["sections"]) * 2
     for chapter in selected_chapters:
         for i, section in enumerate(chapter["sections"]):
             section_content = openai.chat.completions.create(
@@ -62,6 +65,7 @@ def generate_content(selected_chapters):
                 temperature=0.4,
             )
             api_calls += 1
+            print(f"{api_calls}/{total_calls}")
             my_bar.progress(api_calls / total_calls, text="Generating Content")
             raw_content = section_content.choices[0].message.content
 
@@ -108,45 +112,48 @@ def generate_content(selected_chapters):
                 temperature=0.2,
             )
             api_calls += 1
+            print(f"{api_calls}/{total_calls}")
             my_bar.progress(api_calls / total_calls, text="Generating Content")
             problems = json.loads(problem_content.choices[0].message.content)
-
+            # print(len(problems["Problems"]))
             for problem in problems["Problems"]:
                 if problem["Problem_type"] == "code":
-                    output_example = r"""{
-                        Correct_code: "def add(a, b): \n\treturn a + b",
-                        testcases: [
-                            "assert add(1, 2) == 3",
-                            "assert add(3, 4) == 7",
-                            "assert add(5, 6) == 11"
-                        ],
-                    }"""
-                    response = openai.chat.completions.create(
-                        model=st.session_state["openai_model"],
-                        response_format={"type": "json_object"},
-                        messages=[
-                            {
-                                "role": "system",
-                                "content": "You are a course textbook problem solution generation machine designed to output in JSON in the format: "
-                                + output_example
-                                + "\n Follow the format exactly. Must use initial_setup_code to come up with the Correct_code. Ensure the testcases run successfully when concatenated with the Correct_code provided. For any problems whose answer is just a set of import, do not include testcases",
-                            },
-                            {
-                                "role": "user",
-                                "content": "Generate the correct code and testcases for the code problem: \n"
-                                + problem["Problem_statement"]
-                                + "\n using the code setup: \n"
-                                + problem["intial_setup_code"],
-                            },
-                        ],
-                        seed=138,
-                        temperature=0.1,
-                    )
-                    api_calls += 1
-                    my_bar.progress(api_calls / total_calls, text="Generating Content")
-                    correct_code = json.loads(response.choices[0].message.content)
-                    problem["Correct_code"] = correct_code["Correct_code"]
-                    problem["testcases"] = correct_code["testcases"]
+                    with st.spinner("Downloading Solutions and Test Cases"):
+                        output_example = r"""{
+                            Correct_code: "def add(a, b): \n\treturn a + b",
+                            testcases: [
+                                "assert add(1, 2) == 3",
+                                "assert add(3, 4) == 7",
+                                "assert add(5, 6) == 11"
+                            ],
+                        }"""
+                        response = openai.chat.completions.create(
+                            model=st.session_state["openai_model"],
+                            response_format={"type": "json_object"},
+                            messages=[
+                                {
+                                    "role": "system",
+                                    "content": "You are a course textbook problem solution generation machine designed to output in JSON in the format: "
+                                    + output_example
+                                    + "\n Follow the format exactly. Must use initial_setup_code to come up with the Correct_code. Ensure the testcases run successfully when concatenated with the Correct_code provided. For any problems whose answer is just a set of import, do not include testcases",
+                                },
+                                {
+                                    "role": "user",
+                                    "content": "Generate the correct code and testcases for the code problem: \n"
+                                    + problem["Problem_statement"]
+                                    + "\n using the code setup: \n"
+                                    + problem["intial_setup_code"],
+                                },
+                            ],
+                            seed=138,
+                            temperature=0.1,
+                        )
+                        # api_calls += 1
+                        # print(f"{api_calls}/{total_calls}")
+                        # _my_bar.progress(api_calls / total_calls, text="Generating Content")
+                        correct_code = json.loads(response.choices[0].message.content)
+                        problem["Correct_code"] = correct_code["Correct_code"]
+                        problem["testcases"] = correct_code["testcases"]
             # print(section_content.choices[0].message.content)
             chapter["sections"][i] = {
                 "heading": section,
@@ -154,7 +161,7 @@ def generate_content(selected_chapters):
                 "problems": problems["Problems"],
             }
     # print(selected_chapters)
-    my_bar.empty()
+    # _my_bar.empty()
     return selected_chapters
 
 
@@ -166,17 +173,20 @@ def generate_content(selected_chapters):
 #             st.write(i)
 
 
-@st.experimental_fragment
 def content_selection(selected_chapters, section_selections):
 
-    st.header("Table of Content Selection", divider="violet")
-    with st.form(key="content_selection_form"):
-        select_all = st.checkbox("Select All")
-        for i, chapter in enumerate(st.session_state.chapters):
-            section_selections[i] = st.multiselect(
-                chapter["chapter_label"], chapter["sections"]
-            )
-        submitted = st.form_submit_button("Submit")
+    def close_expander():
+        st.session_state.expander_bool = False
+
+    # st.header("Table of Content Selection", divider="violet")
+    with st.expander("Table of Contents", expanded=st.session_state.expander_bool):
+        with st.form(key="content_selection_form"):
+            select_all = st.checkbox("Select All")
+            for i, chapter in enumerate(st.session_state.chapters):
+                section_selections[i] = st.multiselect(
+                    chapter["chapter_label"], chapter["sections"]
+                )
+            submitted = st.form_submit_button("Submit", on_click=close_expander)
     if submitted:
         selected_chapters = []
         # st.code(section_selections)
@@ -188,15 +198,14 @@ def content_selection(selected_chapters, section_selections):
                     # print(i)
                     selected_chapters.append(chapter.copy())
                     selected_chapters[-1]["sections"] = section_selections[i]
-        print(selected_chapters)
+
         if len(selected_chapters) > 0:
-            # replace main area with textbook content
             st.session_state.selected_chapters = generate_content(
                 selected_chapters
             ).copy()
             # print(st.session_state.selected_chapters)
-        st.switch_page("pages/content_page.py")
-        # load_ui(st.session_state.selected_chapters)
+            time.sleep(1)
+            st.switch_page("pages/content_page.py")
     # print(len(st.session_state.selected_chapters))
     # for i, chapter in enumerate(st.session_state.selected_chapters):
     #     test(i)
@@ -263,6 +272,7 @@ def generate_chapters(topic):
     return data["table_of_contents"]["chapters"]
 
 
+# st.session_state.expander_bool = True
 st.header("Topic:", divider="violet")
 topic = st.text_area("Enter the topic you want to study")
 if topic is not None and topic != "":
@@ -278,5 +288,4 @@ if st.session_state.topic is not None and st.session_state.topic != "":
         )
 
     section_selections = [None] * len(st.session_state.chapters)
-
     content_selection([], section_selections)
