@@ -211,14 +211,19 @@ if st.button(
 ):
     st.session_state.expander_bool = True
     st.switch_page("./main.py")
+
+# print(st.session_state.chapters)
 # print(f"{st.session_state.selected_chapters}")
-selected_chapter_tabs = st.tabs(
-    [chapter["chapter_label"] for chapter in st.session_state.selected_chapters]
+printed_chapters = []
+for chapter in st.session_state.selected_chapters:
+    if chapter["sections"] != []:
+        printed_chapters.append(chapter)
+
+printed_chapter_tabs = st.tabs(
+    [chapter["chapter_label"] for chapter in printed_chapters]
 )
 
-for chapter_tab, chapter in zip(
-    selected_chapter_tabs, st.session_state.selected_chapters
-):
+for chapter_tab, chapter in zip(printed_chapter_tabs, printed_chapters):
     with chapter_tab:
         for i, section in enumerate(chapter["sections"]):
             st.subheader(section["heading"], divider="blue")
